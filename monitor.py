@@ -58,13 +58,6 @@ class InstagramRateLimitError(RuntimeError):
     pass
 
 
-class FailFastRateController:
-    def __init__(self, context):
-        self.context = context
-
-    def sleep(self, secs):
-        raise InstagramRateLimitError(f"Instagram rate limited; refusing to wait {secs:.0f} seconds")
-
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -115,6 +108,10 @@ def check_instagram(state):
     """Returns (found_new, post_url) — updates state in place if a new post is found."""
     try:
         import instaloader
+
+        class FailFastRateController(instaloader.RateController):
+            def sleep(self, secs):
+                raise InstagramRateLimitError(f"Instagram rate limited; refusing to wait {secs:.0f} seconds")
 
         L = instaloader.Instaloader(
             sleep=False,
