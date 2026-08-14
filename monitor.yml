@@ -1,0 +1,47 @@
+name: Social Media Monitor
+
+on:
+  schedule:
+    # Runs every 30 minutes. GitHub may delay a few minutes during high load —
+    # that's normal. Change the value below to adjust frequency (min ~5 min).
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}  # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write  # needed so the workflow can commit the updated state.json
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run check
+        env:
+          TARGET_IG_USERNAME: ${{ secrets.TARGET_IG_USERNAME }}
+          TARGET_TT_USERNAME: ${{ secrets.TARGET_TT_USERNAME }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          IG_LOGIN_USERNAME: ${{ secrets.IG_LOGIN_USERNAME }}
+          IG_LOGIN_PASSWORD: ${{ secrets.IG_LOGIN_PASSWORD }}
+        run: python monitor.py --once
+
+      - name: Commit updated state
+        run: |
+          git config user.name "monitor-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state.json
+          git diff --staged --quiet || git commit -m "Update state [skip ci]"
+          git push
