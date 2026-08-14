@@ -53,6 +53,18 @@ STATE_FILE = os.getenv("STATE_FILE", "state.json")
 IG_LOGIN_USERNAME = os.getenv("IG_LOGIN_USERNAME")
 IG_LOGIN_PASSWORD = os.getenv("IG_LOGIN_PASSWORD")
 
+
+class InstagramRateLimitError(RuntimeError):
+    pass
+
+
+class FailFastRateController:
+    def __init__(self, context):
+        self.context = context
+
+    def sleep(self, secs):
+        raise InstagramRateLimitError(f"Instagram rate limited; refusing to wait {secs:.0f} seconds")
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -104,7 +116,13 @@ def check_instagram(state):
     try:
         import instaloader
 
-        L = instaloader.Instaloader()
+        L = instaloader.Instaloader(
+            sleep=False,
+            quiet=True,
+            max_connection_attempts=1,
+            request_timeout=20,
+            rate_controller=lambda ctx: FailFastRateController(ctx),
+        )
         if IG_LOGIN_USERNAME and IG_LOGIN_PASSWORD:
             try:
                 L.login(IG_LOGIN_USERNAME, IG_LOGIN_PASSWORD)
@@ -121,6 +139,9 @@ def check_instagram(state):
             return True, f"https://www.instagram.com/p/{latest.shortcode}/"
         return False, None
 
+    except InstagramRateLimitError as e:
+        print(f"[!] Instagram check skipped: {e}")
+        return False, None
     except Exception as e:
         print(f"[!] Instagram check failed: {e}")
         return False, None
