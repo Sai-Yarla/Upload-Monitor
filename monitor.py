@@ -94,11 +94,21 @@ def send_email(subject, body):
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = TO_EMAIL
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(EMAIL_ADDRESS, EMAIL_APP_PASSWORD)
-        server.send_message(msg)
-    print(f"[✓] Email sent: {subject}")
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_ADDRESS, EMAIL_APP_PASSWORD)
+            server.send_message(msg)
+        print(f"[✓] Email sent: {subject}")
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[!] Email authentication failed: {e}")
+        print(f"    Would have sent: {subject}\n    {body}")
+    except smtplib.SMTPException as e:
+        print(f"[!] Email send failed: {e}")
+        print(f"    Would have sent: {subject}\n    {body}")
+    except OSError as e:
+        print(f"[!] Email connection failed: {e}")
+        print(f"    Would have sent: {subject}\n    {body}")
 
 
 # ---------------------------------------------------------------------------
