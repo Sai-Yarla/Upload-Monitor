@@ -145,25 +145,11 @@ def check_instagram(state):
 
 
 # ---------------------------------------------------------------------------
-# TikTok checker (scrapes the public profile page's embedded JSON)
+# TikTok checker (uses yt-dlp first, then falls back to scraping embedded JSON)
 # ---------------------------------------------------------------------------
 def check_tiktok(state):
     try:
-        url = f"https://www.tiktok.com/@{TT_USERNAME}"
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-
-        data = _extract_tiktok_json(resp.text)
-        if not data:
-            print("[!] Could not find TikTok's embedded data blob (page layout may have changed).")
-            return False, None
-
-        items = _find_item_list(data)
-        if not items:
-            return False, None
-
-        latest = items[0]
-        video_id = latest.get("id")
+        video_id = _get_latest_tiktok_video_id()
         if not video_id:
             return False, None
 
@@ -175,6 +161,96 @@ def check_tiktok(state):
     except Exception as e:
         print(f"[!] TikTok check failed: {e}")
         return False, None
+
+
+def _get_latest_tiktok_video_id():
+    video_id = _get_latest_tiktok_video_id_with_yt_dlp()
+    if video_id:
+        return video_id
+
+    url = f"https://www.tiktok.com/@{TT_USERNAME}"
+    resp = requests.get(url, headers=HEADERS, timeout=15)
+    resp.raise_for_status()
+
+    data = _extract_tiktok_json(resp.text)
+    if not data:
+        print("[!] Could not find TikTok's embedded data blob (page layout may have changed).")
+        return None
+
+    items = _find_item_list(data)
+    if not items:
+        return None
+
+    latest = items[0]
+    return latest.get("id")
+
+
+def _get_latest_tiktok_video_id_with_yt_dlp():
+    try:
+        import yt_dlp
+    except ImportError:
+        return None
+
+    candidate_urls = [
+        f"tiktokuser:{TT_USERNAME}",
+        f"https://www.tiktok.com/@{TT_USERNAME}",
+    ]
+    ydl_opts = {
+        "quiet": True,
+        "skip_download": True,
+        "extract_flat": True,
+        "ignoreerrors": True,
+        "retries": 1,
+        "extractor_retries": 1,
+    }
+
+    last_error = None
+    for candidate_url in candidate_urls:
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(candidate_url, download=False)
+        except Exception as e:
+            last_error = e
+            continue
+
+        video_id = _first_tiktok_entry_id(info)
+        if video_id:
+            return video_id
+
+    if last_error:
+        print(f"[!] TikTok yt-dlp extraction failed: {last_error}")
+    return None
+
+
+def _first_tiktok_entry_id(info):
+    if not isinstance(info, dict):
+        return None
+
+    entries = info.get("entries")
+    if not entries:
+        return None
+
+    first_entry = None
+    if isinstance(entries, list):
+        first_entry = entries[0] if entries else None
+    else:
+        for first_entry in entries:
+            break
+
+    if not isinstance(first_entry, dict):
+        return None
+
+    video_id = first_entry.get("id")
+    if video_id:
+        return video_id
+
+    for candidate in (first_entry.get("webpage_url"), first_entry.get("url")):
+        if not candidate:
+            continue
+        match = re.search(r"/video/(\d+)", candidate)
+        if match:
+            return match.group(1)
+    return None
 
 
 def _extract_tiktok_json(html):

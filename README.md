@@ -59,8 +59,8 @@ crontab -e
 ## How it works
 
 - **Instagram**: uses the `instaloader` library to read the account's public post list.
-- **TikTok**: fetches the public profile page and parses the JSON TikTok embeds in the
-  page itself (there's no public API for this), pulling out the newest video ID.
+- **TikTok**: uses yt-dlp's TikTok extractor first, then falls back to parsing the
+  JSON TikTok embeds in the public profile page, pulling out the newest video ID.
 - Each check compares the latest post ID against the one saved in `state.json` from the
   last run. If it's different, you get an email and the new ID is saved.
 
@@ -134,7 +134,7 @@ scraping — worth checking their current pricing pages yourself if you want to 
   or set `IG_LOGIN_USERNAME` / `IG_LOGIN_PASSWORD` in `.env` (use a secondary account,
   not your main one — accounts used for scraping can occasionally get flagged).
 - If TikTok checks start silently returning nothing, TikTok likely changed its page
-  layout again — the `_extract_tiktok_json` / `_find_item_list` functions in
-  `monitor.py` are the two places to update.
+  layout again or the extractor needs an update — the TikTok helpers in `monitor.py`
+  are the two places to update.
 - For a private account (either platform), you'd need a logged-in session with access
   to that account — public scraping won't see anything.
