@@ -89,7 +89,7 @@ def send_email(subject, body):
     if not EMAIL_ADDRESS or not EMAIL_APP_PASSWORD:
         print("[!] EMAIL_ADDRESS / EMAIL_APP_PASSWORD not set in .env — skipping send.")
         print(f"    Would have sent: {subject}\n    {body}")
-        return
+        return False
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
@@ -100,22 +100,27 @@ def send_email(subject, body):
             server.login(EMAIL_ADDRESS, EMAIL_APP_PASSWORD)
             server.send_message(msg)
         print(f"[✓] Email sent: {subject}")
+        return True
     except smtplib.SMTPAuthenticationError as e:
         print(f"[!] Email authentication failed: {e}")
         print(f"    Would have sent: {subject}\n    {body}")
+        return False
     except smtplib.SMTPException as e:
         print(f"[!] Email send failed: {e}")
         print(f"    Would have sent: {subject}\n    {body}")
+        return False
     except OSError as e:
         print(f"[!] Email connection failed: {e}")
         print(f"    Would have sent: {subject}\n    {body}")
+        return False
 
 
 # ---------------------------------------------------------------------------
 # Instagram checker (uses the instaloader library)
 # ---------------------------------------------------------------------------
 def check_instagram(state):
-    """Returns (found_new, post_url) — updates state in place if a new post is found."""
+    """Returns (found_new, post_url, latest_id) — does NOT mutate state.
+    Caller should update state only after successful notification."""
     try:
         import instaloader
 
@@ -139,19 +144,18 @@ def check_instagram(state):
         profile = instaloader.Profile.from_username(L.context, IG_USERNAME)
         latest = next(profile.get_posts(), None)
         if latest is None:
-            return False, None
+            return False, None, None
 
         if state.get("instagram") != latest.shortcode:
-            state["instagram"] = latest.shortcode
-            return True, f"https://www.instagram.com/p/{latest.shortcode}/"
-        return False, None
+            return True, f"https://www.instagram.com/p/{latest.shortcode}/", latest.shortcode
+        return False, None, None
 
     except InstagramRateLimitError as e:
         print(f"[!] Instagram check skipped: {e}")
-        return False, None
+        return False, None, None
     except Exception as e:
         print(f"[!] Instagram check failed: {e}")
-        return False, None
+        return False, None, None
 
 
 # ---------------------------------------------------------------------------
@@ -161,16 +165,15 @@ def check_tiktok(state):
     try:
         video_id = _get_latest_tiktok_video_id()
         if not video_id:
-            return False, None
+            return False, None, None
 
         if state.get("tiktok") != video_id:
-            state["tiktok"] = video_id
-            return True, f"https://www.tiktok.com/@{TT_USERNAME}/video/{video_id}"
-        return False, None
+            return True, f"https://www.tiktok.com/@{TT_USERNAME}/video/{video_id}", video_id
+        return False, None, None
 
     except Exception as e:
         print(f"[!] TikTok check failed: {e}")
-        return False, None
+        return False, None, None
 
 
 def _get_latest_tiktok_video_id():
@@ -302,21 +305,25 @@ def run_check_cycle():
     state = load_state()
     found_something = False
 
-    found, url = check_instagram(state)
+    found, url, latest_id = check_instagram(state)
     if found:
-        send_email(
-            f"New Instagram post from @{IG_USERNAME}",
-            f"New post detected:\n{url}\n\nChecked at {datetime.now(timezone.utc).isoformat()}",
-        )
-        found_something = True
+        subject = f"New Instagram post from @{IG_USERNAME}"
+        body = f"New post detected:\n{url}\n\nChecked at {datetime.now(timezone.utc).isoformat()}"
+        if send_email(subject, body):
+            state["instagram"] = latest_id
+            found_something = True
+        else:
+            print("[!] Notification failed — not updating Instagram state so you'll be alerted next run.")
 
-    found, url = check_tiktok(state)
+    found, url, latest_id = check_tiktok(state)
     if found:
-        send_email(
-            f"New TikTok video from @{TT_USERNAME}",
-            f"New video detected:\n{url}\n\nChecked at {datetime.now(timezone.utc).isoformat()}",
-        )
-        found_something = True
+        subject = f"New TikTok video from @{TT_USERNAME}"
+        body = f"New video detected:\n{url}\n\nChecked at {datetime.now(timezone.utc).isoformat()}"
+        if send_email(subject, body):
+            state["tiktok"] = latest_id
+            found_something = True
+        else:
+            print("[!] Notification failed — not updating TikTok state so you'll be alerted next run.")
 
     # Always stamp + save, even with no new posts. This guarantees state.json
     # changes on every run, which the GitHub Actions workflow commits — that
