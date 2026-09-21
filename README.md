@@ -66,8 +66,9 @@ crontab -e
 
 ## Hosting it remotely for free (GitHub Actions)
 
-This runs the checker on GitHub's servers on a schedule, so nothing needs to stay on,
-and it won't use your home IP. Public repos get **unlimited free** Actions minutes.
+This runs the checker on GitHub's servers when you trigger it manually, so nothing
+needs to stay on, and it won't use your home IP. Public repos get **unlimited free**
+Actions minutes.
 
 **1. Create a repo and push these files**
 
@@ -102,25 +103,23 @@ Add each of these (same values as your local `.env`):
 Secrets are encrypted and masked in logs — this is true even on a public repo, so your
 password is safe.
 
-**3. That's it — it's live**
+**3. Run the workflow when needed**
 
-The workflow in `.github/workflows/monitor.yml` runs every 30 minutes automatically.
-You can also trigger it by hand from the repo's **Actions** tab → *Social Media Monitor*
-→ **Run workflow**, which is the easiest way to confirm it's working.
+The workflow in `.github/workflows/monitor.yml` runs only when you trigger it by hand
+from the repo's **Actions** tab → *Social Media Monitor* → **Run workflow**.
 
 **Public vs. private repo:** Public repos get unlimited free Actions minutes, which is
 why it's recommended here — nothing sensitive lives in the code or `state.json` (post
 IDs only), your credentials stay in encrypted Secrets either way. If you'd rather keep
-the repo private, that's fine too, just note the free tier there is 2,000 minutes/month;
-at a 30-minute check interval you'll comfortably stay under that, but if you shorten
-the interval a lot you may want to check your usage under **Settings → Billing**.
+the repo private, that's fine too; you can check your Actions usage under
+**Settings → Billing**.
 
-**Changing the schedule:** edit the `cron:` line in `.github/workflows/monitor.yml`.
-Cron time is UTC. For example `*/15 * * * *` = every 15 minutes, `0 * * * *` = hourly.
+**Restoring automatic runs:** add a `schedule:` trigger to
+`.github/workflows/monitor.yml` with a UTC cron expression.
 
 ## Other free hosting options
 
-GitHub Actions is the most reliable free option for this and is what's set up here.
+GitHub Actions is the remote option set up here.
 A few alternatives exist (Google Cloud Scheduler + Cloud Functions, PythonAnywhere
 scheduled tasks, Render cron jobs), but their free-tier terms shift fairly often and
 some restrict which outbound sites a free-tier task can reach, which would break the

@@ -1,10 +1,6 @@
 name: Social Media Monitor
 
 on:
-  schedule:
-    # Runs every 30 minutes. GitHub may delay a few minutes during high load —
-    # that's normal. Change the value below to adjust frequency (min ~5 min).
-    - cron: '*/30 * * * *'
   workflow_dispatch: {}  # lets you trigger it manually from the Actions tab
 
 permissions:
